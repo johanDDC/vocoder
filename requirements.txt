@@ -1,0 +1,13 @@
+torch
+torchaudio
+librosa
+matplotlib
+wandb
+tqdm
+pyworld
+g2p_en
+yaml
+nltk
+inflect
+scipy
+sklearn

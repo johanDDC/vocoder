@@ -1,0 +1,35 @@
+config:
+  train_config:
+    n_epoches: 50
+    batch_size: 1
+    grad_th_clip: 5
+
+  optimizer_config:
+    lr: 0.0002
+    betas: (0.8, 0.99)
+    wd: 0.01
+    scheduler_gamma: 0.999
+
+  data_config:
+    max_len: 4092
+    data_path: "data"
+    wav_path: "data/LJSpeech-1.1/wavs"
+    mel_path: "data/LJSpeech-1.1/mels"
+    test_path: "data/test"
+    result_path: "results"
+
+  model_config:
+    generator:
+      in_channels: 80
+      inner_channels: 256
+      k_u: (16, 16, 8)
+      k_r: (3, 5, 7)
+      D_r: ((1, 2), (2, 6), (3, 12))
+
+  log_config:
+    steps: 300
+    log_audio_steps: 1000
+    checkpoint_path: "./checkpoints"
+
+  inference:
+    model_path: "checkpoints/checkpoint_1.pth"
