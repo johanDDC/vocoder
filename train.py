@@ -34,7 +34,8 @@ random.seed(SEED)
 np.random.seed(SEED)
 
 
-def train_epoch(model, optimizer, scheduler, train_loader, melspec, train_cfg, log_cfg):
+def train_epoch(model, optimizer, scheduler, train_loader, melspec, train_cfg, log_cfg,
+                mel_cfg, data_cfg):
     generator, mpd, msd = model
     generator.train()
     mpd.train()
@@ -46,17 +47,13 @@ def train_epoch(model, optimizer, scheduler, train_loader, melspec, train_cfg, l
     loss_fn = Loss()
     G_losses = []
     D_losses = []
+    melspec = melspec.to(DEVICE)
     for step, batch in enumerate(tqdm(train_loader, total=len(train_loader))):
         mels = batch["mels"].to(DEVICE, non_blocking=True)
         wavs = batch["wavs"].unsqueeze(dim=1).to(DEVICE, non_blocking=True)
 
         G_wavs = generator(mels)
-        wavs = torch.nn.functional.pad(wavs, (0, np.abs(G_wavs.shape[-1]) - wavs.shape[-1]))
-        G_wavs = torch.nn.functional.pad(G_wavs, (0, np.abs(G_wavs.shape[-1] - wavs.shape[-1])))
-
-        G_mels = melspec(G_wavs.squeeze(dim=1).cpu()).to(DEVICE, non_blocking=True)
-        G_mels = torch.nn.functional.pad(G_mels, (0, np.abs(G_mels.shape[-1] - mels.shape[-1])), value=-11.5129251)
-        mels = torch.nn.functional.pad(mels, (0, np.abs(G_mels.shape[-1] - mels.shape[-1])), value=-11.5129251)
+        G_mels = melspec(G_wavs.squeeze(dim=1))
 
 
         D_opt.zero_grad()
@@ -71,7 +68,7 @@ def train_epoch(model, optimizer, scheduler, train_loader, melspec, train_cfg, l
         D_opt.step()
         D_losses.append(loss.item())
 
-        # generator
+
         G_opt.zero_grad()
         mpd_res_true, mpd_res_gen, mpd_feature_matrices_true, mpd_feature_matrices_gen \
             = mpd(wavs, G_wavs)
@@ -102,11 +99,16 @@ def train_epoch(model, optimizer, scheduler, train_loader, melspec, train_cfg, l
                 "cumulative_G_loss": G_losses[-1]
             })
 
-        if step > 0 and step % log_cfg.log_audio_steps == 0:
+        if step and step % log_cfg.log_audio_steps == 0:
             wandb.log({
                 "some train audio": wandb.Audio(G_wavs[0].cpu().detach().numpy().T,
                                               sample_rate=22050)
             })
+            wandb_log = {}
+            for file in ["data/test/audio_1.wav", "data/test/audio_2.wav",
+                         "data/test/audio_3.wav"]:
+                wandb_log[file] = evaluate(generator, file, mel_cfg, data_cfg)
+            wandb.log(wandb_log)
     return np.mean(D_losses), np.mean(G_losses)
 
 
@@ -130,16 +132,16 @@ def train(cfg, mel_cfg):
                           model_cfg.generator.k_u,
                           model_cfg.generator.k_r,
                           model_cfg.generator.D_r).to(DEVICE)
-    mpd = MPD().to(DEVICE)
+    mpd = MPD(model_cfg.mpd.in_channels, model_cfg.mpd.out_channels).to(DEVICE)
     msd = MSD().to(DEVICE)
 
     wandb.watch(generator, log="all", log_freq=10)
     betas = literal_eval(opt_cfg.betas)
 
     G_opt = torch.optim.AdamW(generator.parameters(), lr=opt_cfg.lr,
-                              betas=betas, weight_decay=opt_cfg.wd)
+                              betas=betas)
     D_opt = torch.optim.AdamW(nn.ModuleList([mpd, msd]).parameters(), lr=opt_cfg.lr,
-                              betas=betas, weight_decay=opt_cfg.wd)
+                              betas=betas)
 
     G_scheduler = torch.optim.lr_scheduler.ExponentialLR(G_opt,
                                                          gamma=opt_cfg.scheduler_gamma)
@@ -152,13 +154,14 @@ def train(cfg, mel_cfg):
     for epoch in range(1, n_epoches + 1):
         D_loss, G_loss = train_epoch((generator, mpd, msd), (G_opt, D_opt),
                                      (G_scheduler, D_scheduler), train_loader,
-                                     melspec, train_cfg, log_cfg)
+                                     melspec, train_cfg, log_cfg, mel_cfg, data_cfg)
 
         torch.save({"model_g": generator.state_dict(),
                     "model_mpd": mpd.state_dict(),
                     "model_msd": msd.state_dict(),
                     "opt_g": G_opt.state_dict(),
-                    "opt_d": D_opt.state_dict()}, f"{log_cfg.checkpoint_path}/checkpoint_{epoch}")
+                    "opt_d": D_opt.state_dict()},
+                   f"{log_cfg.checkpoint_path}/checkpoint_{epoch}.pth")
 
         wandb_log = {}
         for file in test_files:
@@ -176,5 +179,5 @@ if __name__ == "__main__":
     cfg = Dict(cfg).config
     #
     with wandb.init(project="vocoder", entity="johan_ddc_team", config=cfg,
-                    name="main_run"):
+                    name="no_wd"):
         train(cfg, melspec_cfg)

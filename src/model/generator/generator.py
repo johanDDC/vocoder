@@ -14,6 +14,7 @@ class Generator(nn.Module):
         self.input_layer = weight_norm(nn.Conv1d(d_input, d_inner,
                                                  kernel_size=7, stride=1, padding=3))
         self.relu = nn.LeakyReLU(0.1)
+        self.tanh = nn.Tanh()
         self.upsampling_blocks = nn.ModuleList()
         self.mrfs = nn.ModuleList()
 
@@ -28,13 +29,12 @@ class Generator(nn.Module):
             curr_channels //= 2
             self.mrfs.append(MRF(curr_channels, k_r, D_r))
 
-        self.output_layer = weight_norm(nn.Conv1d(curr_channels, 1, 7, padding=3))
-        self.tanh = nn.Tanh()
+        self.output_layer = weight_norm(nn.Conv1d(curr_channels, 1, kernel_size=7, padding=3))
         self.apply(self.__init_weights)
 
     @staticmethod
     def __init_weights(layer):
-        if isinstance(layer, (nn.Conv2d, nn.ConvTranspose2d)):
+        if isinstance(layer, (nn.Conv1d, nn.ConvTranspose1d)):
             init.normal_(layer.weight, 0, 0.01)
             init.constant_(layer.bias, 0)
 

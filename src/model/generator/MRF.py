@@ -15,11 +15,8 @@ class ResBlock(nn.Module):
         self.relu = nn.LeakyReLU(0.1)
 
     def forward(self, x):
-        resid = x.clone()
         for block in self.blocks:
-            x = self.relu(block(x))
-            x = x + resid
-            resid = x.clone()
+            x = x + block(self.relu(x))
         return x
 
 
@@ -34,5 +31,5 @@ class MRF(nn.Module):
     def forward(self, x):
         x = self.blocks[0](x)
         for i in range(1, len(self.blocks)):
-            x = x + self.blocks[i](torch.clone(x))
+            x = x + self.blocks[i](x)
         return x / len(self.kr)

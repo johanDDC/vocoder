@@ -19,23 +19,19 @@ class ScaleDiscriminator(nn.Module):
                                            groups=16, padding=20)),
             normalization_method(nn.Conv1d(1024, 1024, kernel_size=41, groups=16, padding=20)),
             normalization_method(nn.Conv1d(1024, 1024, kernel_size=5, padding=2)),
-            normalization_method(nn.Conv1d(1024, 1, kernel_size=3, padding=1))
         ])
+        self.out_layer = normalization_method(nn.Conv1d(1024, 1, kernel_size=3, padding=1))
         self.relu = nn.LeakyReLU(0.1)
-        self.apply(self.__init_weights)
-
-    @staticmethod
-    def __init_weights(layer):
-        if isinstance(layer, (nn.Conv1d,)):
-            init.normal_(layer.weight, 0, 0.01)
-            init.constant_(layer.bias, 0)
+        self.flatten = nn.Flatten(start_dim=1)
 
     def forward(self, x):
         feature_matrices = []
         for block in self.blocks:
             x = self.relu(block(x))
             feature_matrices.append(x)
-        return nn.Flatten(start_dim=1)(x), feature_matrices
+        x = self.out_layer(x)
+        feature_matrices.append(x)
+        return self.flatten(x), feature_matrices
 
 
 class MSD(nn.Module):
@@ -47,6 +43,13 @@ class MSD(nn.Module):
             ScaleDiscriminator(weight_norm),
         ])
         self.pool = nn.AvgPool1d(kernel_size=4, stride=2, padding=2)
+        self.apply(self.__init_weights)
+
+    @staticmethod
+    def __init_weights(layer):
+        if isinstance(layer, (nn.Conv1d,)):
+            init.normal_(layer.weight, 0, 0.01)
+            init.constant_(layer.bias, 0)
 
     def forward(self, true_wav, gen_wav):
         res_true = [None for _ in range(len(self.blocks))]

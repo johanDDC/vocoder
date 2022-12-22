@@ -22,19 +22,12 @@ class LJSpeechDataset(torchaudio.datasets.LJSPEECH):
         mels = []
 
         for wav in batch:
-            if wav.shape[0] >= self.max_len:
+            if wav.shape[1] >= self.max_len:
                 segments = torch.split(wav, self.max_len, dim=1)
-                wav = segments[torch.randint(0, len(segments))]
+                wav = segments[torch.randint(len(segments) - 1, size=(1,))]
             wavs.append(wav.squeeze(0))
             melspec = self.mel_spec(wav)
             mels.append(melspec.squeeze(0).transpose(-1, -2))
-
-            #
-            # for segment in segments:
-            #     if segment.shape[-1] >= self.max_len // 2:
-            #         melspec = self.mel_spec(segment)
-            #         texts.append(text)
-            #
 
         wavs = pad_sequence(wavs, batch_first=True, padding_value=0)
         mels = pad_sequence(mels, batch_first=True,

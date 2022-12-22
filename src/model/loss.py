@@ -1,9 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.utils import weight_norm, spectral_norm
-import torch.nn.init as init
-
 
 class Loss(nn.Module):
     def __init__(self):
@@ -32,7 +29,7 @@ class Loss(nn.Module):
         for i in range(len(feature_matrices_true)):
             for j in range(len(feature_matrices_true[i])):
                 loss += F.l1_loss(feature_matrices_true[i][j],
-                                  feature_matrices_gen[i][j], reduction="mean")
+                                  feature_matrices_gen[i][j])
         return loss
 
     def forward(self):
